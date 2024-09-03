@@ -3,6 +3,7 @@ from PyPDF2 import PdfReader
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -31,14 +32,27 @@ def generate_response(messages):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
-        max_tokens=500,
+        max_tokens=900,
         stop=None,
         temperature=0.7,
     )
     return response.choices[0].message.content
 
+# Fonction pour générer l'audio à partir du texte
+def generate_speech(text):
+    speech_file_path = Path(__file__).parent / "speech.mp3"
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice="shimmer",
+        input=text
+    )
+    response.stream_to_file(speech_file_path)
+    return speech_file_path
 
 def main():
+    
+    if "message" not in st.session_state:
+        st.session_state.message = [{"role": "system", "content": f"Vous êtes un assistant utile. Utilisez le contexte qui vous est donné pour répondre aux questions des utilisateurs."}]
     
     with st.sidebar:
         st.header("Sélection des documents")
@@ -48,18 +62,29 @@ def main():
                 nom_fichier = os.path.splitext(fichier)[0]
                 documents_disponibles[nom_fichier] = os.path.join("docs", fichier)
         
+        if "documents_selectionnes" not in st.session_state:
+            st.session_state.documents_selectionnes = []
+        
         documents_selectionnes = st.multiselect(
             "Choisissez un ou plusieurs documents à incorporer dans le contexte",
             options=list(documents_disponibles.keys()),
-            default=list(documents_disponibles.keys())[0] if documents_disponibles else None
+            default=st.session_state.documents_selectionnes,
+            key="documents_multiselect"
         )
-        documents_selectionnes_chemins = [documents_disponibles[doc] for doc in documents_selectionnes]
         
+        if documents_selectionnes != st.session_state.documents_selectionnes:
+            st.session_state.documents_selectionnes = documents_selectionnes
+            st.rerun()
+        
+        documents_selectionnes_chemins = [documents_disponibles[doc] for doc in documents_selectionnes]
+     
+     
+    
+    
     if documents_selectionnes:
         contenu_document = extraire_texte_pdf(documents_selectionnes_chemins)
-    
-    if "message" not in st.session_state:
-        st.session_state.message = [{"role": "system", "content": f"Vous êtes un assistant utile. Utilisez le contexte suivant pour répondre aux questions : {contenu_document}"}]
+        st.session_state.message.append({"role": "system", "content": contenu_document})
+        
     
     st.title("Chatbot Test Management")
     messages_container = st.container(height=500)
@@ -75,6 +100,8 @@ def main():
         response = generate_response(st.session_state.message)
         st.session_state.message.append({"role": "assistant", "content": response})
         messages_container.chat_message("assistant").write(response)
+        
+
         
 if __name__ == "__main__":
     main()
