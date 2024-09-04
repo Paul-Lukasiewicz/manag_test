@@ -38,21 +38,11 @@ def generate_response(messages):
     )
     return response.choices[0].message.content
 
-# Fonction pour générer l'audio à partir du texte
-def generate_speech(text):
-    speech_file_path = Path(__file__).parent / "speech.mp3"
-    response = client.audio.speech.create(
-        model="tts-1",
-        voice="shimmer",
-        input=text
-    )
-    response.stream_to_file(speech_file_path)
-    return speech_file_path
 
 def main():
     
     if "message" not in st.session_state:
-        st.session_state.message = [{"role": "system", "content": f"Vous êtes un assistant utile. Utilisez le contexte qui vous est donné pour répondre aux questions des utilisateurs."}]
+        st.session_state.message = []
     
     with st.sidebar:
         st.header("Sélection des documents")
@@ -78,13 +68,16 @@ def main():
         
         documents_selectionnes_chemins = [documents_disponibles[doc] for doc in documents_selectionnes]
      
-     
-    
-    
+
     if documents_selectionnes:
+        transitory_message = [{"role": "system", "content": f"Vous êtes un assistant utile. Utilisez le contexte qui vous est donné pour répondre aux questions des utilisateurs."}]
         contenu_document = extraire_texte_pdf(documents_selectionnes_chemins)
-        st.session_state.message.append({"role": "system", "content": contenu_document})
+        transitory_message.append({"role": "system", "content": contenu_document})
         
+        for message in st.session_state.message:
+            transitory_message.append(message)
+        
+        st.session_state.message = transitory_message
     
     st.title("Chatbot Test Management")
     messages_container = st.container(height=500)
